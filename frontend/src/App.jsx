@@ -1,41 +1,66 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Header } from "./components/Header";
+import { StatsSummary } from "./components/StatsSummary";
+import { AddTaskCard } from "./components/AddTaskCard";
+import { FilterAndSearch } from "./components/FilterAndSearch";
+import { TaskCard } from "./components/TaskCard";
+import { SkeletonLoader } from "./components/SkeletonLoader";
+import { EmptyState } from "./components/EmptyState";
+import { ToastContainer } from "./components/Toast";
 
 const API_URL = "https://hackathon-task-manager-backend.onrender.com/api/tasks";
 
 function App() {
   const [tasks, setTasks] = useState([]);
-  const [task, setTask] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [taskLoading, setTaskLoading] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState("all");
+  const [toasts, setToasts] = useState([]);
+
+  // Toast Helper
+  const addToast = (message, type = "info") => {
+    const id = Date.now() + Math.random().toString();
+    setToasts((prev) => [...prev, { id, message, type }]);
+
+    setTimeout(() => {
+      removeToast(id);
+    }, 3500);
+  };
+
+  const removeToast = (id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
 
   // Fetch all tasks
   const fetchTasks = async () => {
+    setIsInitialLoading(true);
     try {
       const response = await fetch(API_URL);
 
       if (!response.ok) {
-        throw new Error("Failed to fetch tasks");
+        throw new Error("Failed to fetch tasks from backend server");
       }
 
       const data = await response.json();
-      setTasks(data);
+      setTasks(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Fetch error:", error);
+      addToast(error.message || "Failed to load tasks", "error");
+    } finally {
+      setIsInitialLoading(false);
     }
   };
 
-  // Load tasks when page opens
+  // Load tasks on initial mount
   useEffect(() => {
     fetchTasks();
   }, []);
 
-  // Add task
-  const addTask = async () => {
-    if (!task.trim()) {
-      alert("Please enter a task");
-      return;
-    }
-
-    setLoading(true);
+  // Add new task
+  const handleAddTask = async (title) => {
+    setTaskLoading(true);
 
     try {
       const response = await fetch(API_URL, {
@@ -44,7 +69,7 @@ function App() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          title: task.trim(),
+          title: title.trim(),
         }),
       });
 
@@ -54,21 +79,19 @@ function App() {
         throw new Error(data.error || "Failed to add task");
       }
 
-      // Add newly created task to UI
-      setTasks((prevTasks) => [data, ...prevTasks]);
-
-      // Clear input
-      setTask("");
+      // Add newly created task to state
+      setTasks((prev) => [data, ...prev]);
+      addToast("Task added successfully!", "success");
     } catch (error) {
       console.error("Add task error:", error);
-      alert(error.message);
+      addToast(error.message || "Could not create task", "error");
     } finally {
-      setLoading(false);
+      setTaskLoading(false);
     }
   };
 
   // Delete task
-  const deleteTask = async (id) => {
+  const handleDeleteTask = async (id) => {
     try {
       const response = await fetch(`${API_URL}/${id}`, {
         method: "DELETE",
@@ -80,17 +103,16 @@ function App() {
         throw new Error(data.error || "Failed to delete task");
       }
 
-      setTasks((prevTasks) =>
-        prevTasks.filter((task) => task.id !== id)
-      );
+      setTasks((prev) => prev.filter((t) => t.id !== id));
+      addToast("Task deleted", "delete");
     } catch (error) {
       console.error("Delete error:", error);
-      alert(error.message);
+      addToast(error.message || "Could not delete task", "error");
     }
   };
 
   // Complete task
-  const completeTask = async (id) => {
+  const handleCompleteTask = async (id) => {
     try {
       const response = await fetch(`${API_URL}/${id}`, {
         method: "PATCH",
@@ -102,227 +124,108 @@ function App() {
       const updatedTask = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          updatedTask.error || "Failed to complete task"
-        );
+        throw new Error(updatedTask.error || "Failed to complete task");
       }
 
-      setTasks((prevTasks) =>
-        prevTasks.map((task) =>
-          task.id === id ? updatedTask : task
-        )
+      setTasks((prev) =>
+        prev.map((t) => (t.id === id ? updatedTask : t))
       );
+      addToast("Task marked as completed!", "success");
     } catch (error) {
       console.error("Complete error:", error);
-      alert(error.message);
+      addToast(error.message || "Could not complete task", "error");
     }
   };
 
-  // Press Enter to add task
-  const handleKeyDown = (event) => {
-    if (event.key === "Enter") {
-      addTask();
-    }
+  // Filter & Search Logic
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      const matchesSearch = t.title
+        ?.toLowerCase()
+        .includes(searchQuery.toLowerCase().trim());
+
+      if (activeFilter === "completed") {
+        return matchesSearch && t.completed;
+      }
+      if (activeFilter === "pending") {
+        return matchesSearch && !t.completed;
+      }
+      return matchesSearch;
+    });
+  }, [tasks, searchQuery, activeFilter]);
+
+  // Task Statistics
+  const totalTasks = tasks.length;
+  const completedTasks = tasks.filter((t) => t.completed).length;
+  const pendingTasks = totalTasks - completedTasks;
+
+  const counts = {
+    all: totalTasks,
+    completed: completedTasks,
+    pending: pendingTasks,
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#f5f7fb",
-        padding: "40px 20px",
-        fontFamily: "Arial, sans-serif",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: "700px",
-          margin: "0 auto",
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            background: "#111827",
-            color: "white",
-            padding: "30px",
-            borderRadius: "18px",
-            marginBottom: "25px",
-          }}
-        >
-          <h1
-            style={{
-              margin: 0,
-              fontSize: "32px",
-            }}
-          >
-            🚀 Hackathon Task Manager
-          </h1>
+    <div className="min-h-screen bg-[#080c14] text-slate-100 px-4 py-6 sm:py-10 relative selection:bg-indigo-500/30 selection:text-indigo-200">
+      <div className="max-w-5xl mx-auto">
+        {/* Main Dashboard Header */}
+        <Header />
 
-          <p
-            style={{
-              marginBottom: 0,
-              color: "#cbd5e1",
-            }}
-          >
-            React + Node.js + Express + Supabase
-          </p>
-        </div>
+        {/* Dashboard Statistics Summary */}
+        <StatsSummary
+          totalTasks={totalTasks}
+          completedTasks={completedTasks}
+          pendingTasks={pendingTasks}
+        />
 
-        {/* Add Task */}
-        <div
-          style={{
-            background: "white",
-            padding: "20px",
-            borderRadius: "16px",
-            display: "flex",
-            gap: "10px",
-            marginBottom: "25px",
-            boxShadow: "0 5px 20px rgba(0,0,0,0.06)",
-          }}
-        >
-          <input
-            type="text"
-            value={task}
-            onChange={(event) => setTask(event.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Enter a new task..."
-            style={{
-              flex: 1,
-              padding: "14px",
-              border: "1px solid #d1d5db",
-              borderRadius: "10px",
-              fontSize: "16px",
-              outline: "none",
-            }}
-          />
+        {/* Add Task Input Card */}
+        <AddTaskCard onAddTask={handleAddTask} loading={taskLoading} />
 
-          <button
-            onClick={addTask}
-            disabled={loading}
-            style={{
-              padding: "14px 22px",
-              border: "none",
-              borderRadius: "10px",
-              background: loading ? "#9ca3af" : "#2563eb",
-              color: "white",
-              fontSize: "16px",
-              fontWeight: "bold",
-              cursor: loading ? "not-allowed" : "pointer",
-            }}
-          >
-            {loading ? "Adding..." : "Add Task"}
-          </button>
-        </div>
+        {/* Filter and Search Bar */}
+        <FilterAndSearch
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          activeFilter={activeFilter}
+          setActiveFilter={setActiveFilter}
+          counts={counts}
+        />
 
-        {/* Task List */}
-        <div>
-          {tasks.length === 0 ? (
-            <div
-              style={{
-                background: "white",
-                padding: "50px 20px",
-                borderRadius: "16px",
-                textAlign: "center",
-                color: "#6b7280",
-                boxShadow: "0 5px 20px rgba(0,0,0,0.05)",
-              }}
-            >
-              <div style={{ fontSize: "40px" }}>📋</div>
-
-              <h3>No tasks yet</h3>
-
-              <p>Add your first task above.</p>
-            </div>
+        {/* Task List Section */}
+        <div className="min-h-[260px] relative">
+          {isInitialLoading ? (
+            <SkeletonLoader />
+          ) : filteredTasks.length === 0 ? (
+            <EmptyState searchQuery={searchQuery} activeFilter={activeFilter} />
           ) : (
-            tasks.map((item) => (
-              <div
-                key={item.id}
-                style={{
-                  background: "white",
-                  padding: "18px 20px",
-                  borderRadius: "14px",
-                  marginBottom: "12px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "15px",
-                  boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
-                }}
-              >
-                {/* Task title */}
-                <div
-                  style={{
-                    flex: 1,
-                    textDecoration: item.completed
-                      ? "line-through"
-                      : "none",
-                    color: item.completed
-                      ? "#9ca3af"
-                      : "#111827",
-                    fontSize: "17px",
-                  }}
-                >
-                  {item.title}
-                </div>
-
-                {/* Buttons */}
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "8px",
-                  }}
-                >
-                  {!item.completed && (
-                    <button
-                      onClick={() => completeTask(item.id)}
-                      style={{
-                        border: "none",
-                        background: "#dcfce7",
-                        color: "#166534",
-                        padding: "8px 12px",
-                        borderRadius: "8px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      ✓
-                    </button>
-                  )}
-
-                  <button
-                    onClick={() => deleteTask(item.id)}
-                    style={{
-                      border: "none",
-                      background: "#fee2e2",
-                      color: "#991b1b",
-                      padding: "8px 12px",
-                      borderRadius: "8px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    🗑
-                  </button>
-                </div>
-              </div>
-            ))
+            <motion.div layout className="space-y-3">
+              <AnimatePresence mode="popLayout">
+                {filteredTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    onComplete={handleCompleteTask}
+                    onDelete={handleDeleteTask}
+                  />
+                ))}
+              </AnimatePresence>
+            </motion.div>
           )}
         </div>
 
-        {/* Footer */}
-        <div
-          style={{
-            textAlign: "center",
-            marginTop: "30px",
-            color: "#6b7280",
-            fontSize: "14px",
-          }}
-        >
-          <p>
-            Frontend: React + Vite | Backend: Node.js + Express |
-            Database: Supabase PostgreSQL
+        {/* Dashboard Footer */}
+        <footer className="mt-16 text-center text-xs text-slate-400 border-t border-slate-900 pt-8 pb-4 font-mono">
+          <p className="flex items-center justify-center gap-2 flex-wrap">
+            <span>Frontend: React + Vite + Framer Motion</span>
+            <span className="text-slate-700">•</span>
+            <span>Backend: Node.js + Express (Render)</span>
+            <span className="text-slate-700">•</span>
+            <span>Database: Supabase</span>
           </p>
-        </div>
+        </footer>
       </div>
+
+      {/* Global Toast Notifications */}
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   );
 }
