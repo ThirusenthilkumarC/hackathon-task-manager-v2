@@ -9,34 +9,34 @@ export const ToastContainer = ({ toasts, removeToast }) => {
         {toasts.map((toast) => (
           <motion.div
             key={toast.id}
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            initial={{ opacity: 0, y: 15, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 50, scale: 0.95 }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
-            className={`pointer-events-auto flex items-center justify-between p-3.5 rounded-xl border backdrop-blur-xl shadow-2xl ${
+            exit={{ opacity: 0, x: 40, scale: 0.95 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className={`pointer-events-auto flex items-center justify-between p-3.5 rounded-2xl border shadow-lg backdrop-blur-md ${
               toast.type === 'success'
-                ? 'bg-emerald-950/80 border-emerald-500/30 text-emerald-200'
+                ? 'bg-[#EAF3EA] border-[#CBE0CE] text-[#1B3B2B]'
                 : toast.type === 'delete'
-                ? 'bg-rose-950/80 border-rose-500/30 text-rose-200'
+                ? 'bg-slate-900 border-slate-800 text-white'
                 : toast.type === 'error'
-                ? 'bg-amber-950/80 border-amber-500/30 text-amber-200'
-                : 'bg-indigo-950/80 border-indigo-500/30 text-indigo-200'
+                ? 'bg-rose-50 border-rose-200 text-rose-800'
+                : 'bg-slate-900 border-slate-800 text-white'
             }`}
           >
             <div className="flex items-center gap-3">
-              {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />}
-              {toast.type === 'delete' && <Trash2 className="w-5 h-5 text-rose-400 shrink-0" />}
-              {toast.type === 'error' && <XCircle className="w-5 h-5 text-amber-400 shrink-0" />}
-              {toast.type === 'info' && <AlertCircle className="w-5 h-5 text-indigo-400 shrink-0" />}
+              {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-[#1B3B2B] shrink-0" />}
+              {toast.type === 'delete' && <Trash2 className="w-4 h-4 text-rose-400 shrink-0" />}
+              {toast.type === 'error' && <XCircle className="w-4 h-4 text-rose-600 shrink-0" />}
+              {toast.type === 'info' && <AlertCircle className="w-4 h-4 text-slate-300 shrink-0" />}
               
-              <span className="text-sm font-medium text-slate-100">{toast.message}</span>
+              <span className="text-xs font-semibold">{toast.message}</span>
             </div>
 
             <button
               onClick={() => removeToast(toast.id)}
-              className="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-slate-200 transition-colors ml-2"
+              className="p-1 rounded-full hover:bg-black/5 text-current opacity-70 hover:opacity-100 transition-opacity ml-2 cursor-pointer"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           </motion.div>
         ))}
